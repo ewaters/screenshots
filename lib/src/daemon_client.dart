@@ -23,7 +23,8 @@ class DaemonClient {
   Completer? _waitForConnection;
   final Map<int, Completer<Map<String, dynamic>>> _waitForResponse = {};
   Completer<Map<String, dynamic>> _waitForEvent = Completer();
-  List<Map<String, String>>? _iosDevices; // contains model of device, used by screenshots
+  List<Map<String, String>>?
+      _iosDevices; // contains model of device, used by screenshots
   StreamSubscription? _stdOutListener;
   StreamSubscription? _stdErrListener;
 
@@ -75,7 +76,9 @@ class DaemonClient {
     var result = await _sendCommand(command);
     _processResponse(result, command);
 
-    var e = await emulators;
+    for (final e in await emulators) {
+      printTrace('emulators returned ${e.id} $e');
+    }
 
     return "unknown";
   }
@@ -84,7 +87,13 @@ class DaemonClient {
   Future<List<DaemonDevice>> get devices async {
     final devices =
         await _sendCommandWaitResponse({'method': 'device.getDevices'});
-    return devices.map((device) {
+    return devices.where((device) {
+      if (device['emulatorId'] == null) {
+        printTrace('Skipping device $device as emulatorId is null');
+        return false;
+      }
+      return true;
+    }).map((device) {
       // add model name if real ios device present
       if (platform.isMacOS &&
           device['platform'] == 'ios' &&
@@ -148,7 +157,7 @@ class DaemonClient {
         return [];
       }
     }).listen((dynamic data) async {
-      if(data is! Map<String, dynamic>) {
+      if (data is! Map<String, dynamic>) {
         return;
       }
 
@@ -200,7 +209,8 @@ class DaemonClient {
     return _processResponse(response, command);
   }
 
-  List _processResponse(Map<String, dynamic> data, Map<String, dynamic> command) {
+  List _processResponse(
+      Map<String, dynamic> data, Map<String, dynamic> command) {
     var result = data.remove('result');
     if (result != null) {
       return result;
@@ -250,8 +260,8 @@ Future waitForEmulatorToStart(
     printTrace(
         'waiting for emulator/simulator with device id \'$deviceId\' to start...');
     final devices = await daemonClient.devices;
-    final device = devices.firstWhereOrNull(
-        (device) => device.id == deviceId && device.emulator);
+    final device = devices
+        .firstWhereOrNull((device) => device.id == deviceId && device.emulator);
     started = device != null;
     await Future.delayed(Duration(milliseconds: 1000));
   }
@@ -329,8 +339,8 @@ DaemonEmulator? loadDaemonEmulator(Map<String, dynamic> emulator) {
   var platformType = emulator['platformType'];
 
   // TODO(trygvis): check what ios would return there
-  var deviceType = platformType == 'android' ? DeviceType.android
-      : DeviceType.ios;
+  var deviceType =
+      platformType == 'android' ? DeviceType.android : DeviceType.ios;
 
   return DaemonEmulator(
     emulator['id'],
@@ -360,6 +370,9 @@ DaemonDevice loadDaemonDevice(Map<String, dynamic> device) {
     );
   }
   print("device: $device");
+  if (device['emulatorId'] == null) {
+    throw "Invalid device: emulatorId is null";
+  }
   return DaemonDevice(
     device['id'],
     device['name'],

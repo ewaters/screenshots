@@ -16,7 +16,7 @@ Future screenshot(final driver, Config config, String name,
   final pixels = await driver.screenshot();
   final testDir = '${config.stagingDir}/$kTestScreenshotsDir';
   final file =
-  await File('$testDir/$name.$kImageExtension').create(recursive: true);
+      await File('$testDir/$name.$kImageExtension').create(recursive: true);
   await file.writeAsBytes(pixels);
   if (!silent) print('Screenshot $name created');
 }
